@@ -52,11 +52,11 @@ RUN apt-get update && \
 COPY --from=builder "$VIRTUAL_ENV" "$VIRTUAL_ENV"
 COPY src/docker-setup.sh /docker-setup.sh
 
-RUN groupadd -g 500 zope-www && \
-    useradd -g 500 -u 500 -m -s /bin/bash zope-www && \
+RUN groupadd -g 1000 zope-www && \
+    useradd -g 1000 -u 1000 -m -s /bin/bash zope-www && \
     mkdir -p "$LC_HOME/var" && \
     chmod +x /docker-setup.sh && \
-    chown -R 500:500 "$LC_HOME"
+    chown -R 1000:1000 "$LC_HOME"
 
 WORKDIR /opt/local_converters/venv/lib/python3.11/site-packages/Products/reportek.converters
 
