@@ -1,58 +1,71 @@
-FROM almalinux:9.3
+FROM python:3.11-slim-bookworm AS builder
 
-ENV PYTHON python
-ENV CONFIG base.cfg
-ENV LC_HOME /opt/local_converters
+ENV LC_HOME=/opt/local_converters \
+    VIRTUAL_ENV=/opt/local_converters/venv \
+    PATH=/opt/local_converters/venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
 
-ADD src/install-dependencies.sh /bin/install-dependencies
-ADD src/*.yum /etc/yum/
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
 
-COPY src/docker-setup.sh          \
-    src/configure.py             /
-COPY src/versions.cfg             \
-    src/sources.cfg               \
-    src/base.cfg                  \
-    src/converters.cfg            \
-    src/converters.tpl            $LC_HOME/
+COPY src/requirements.txt /requirements.txt
 
-WORKDIR /var/local
-RUN yum update -y && yum install -y git epel-release && \
-    update-alternatives --install /usr/bin/python python /usr/bin/python3 20 && \
-    dnf -y update && dnf install -y epel-release && \
-    dnf config-manager --set-enabled crb && \
-    dnf install -y freexl graphviz-devel gdal gdal-libs ImageMagick \
-    ImageMagick-devel python-devel libtiff-devel libcurl-devel geos geos-devel \
-    proj libspatialite-devel readosm proj-devel automake && \
-    /bin/install-dependencies /etc/yum/ && \
-    \
-    groupadd -g 500 zope-www && \
-    useradd  -g 500 -u 500 -m -s /bin/bash zope-www && \
-    yum remove pip setuptools -y && \
-    python -m ensurepip --upgrade && python -m pip install -U pip && \
-    pip install zc.buildout beautifulsoup4 setuptools && \
-    pip install --upgrade setuptools && \
-    curl -L "https://anduin.linuxfromscratch.org/BLFS/wv/wv-1.2.9.tar.gz" -o "/var/local/wv-1.2.9.tar.gz" && \
-    cd /var/local && tar -zxvf wv-1.2.9.tar.gz && rm wv-1.2.9.tar.gz && cd wv-1.2.9 && \
-    curl -L "http://savannah.gnu.org/cgi-bin/viewcvs/*checkout*/config/config/config.sub" -o "config.sub" && \
-    curl -L "http://savannah.gnu.org/cgi-bin/viewcvs/*checkout*/config/config/config.guess" -o "config.guess" && \
-    ./configure && make && make install clean && cd /var/local && rm -rf wv-1.2.9
+RUN python -m venv "$VIRTUAL_ENV" && \
+    "$VIRTUAL_ENV/bin/python" -m pip install --upgrade pip setuptools wheel && \
+    "$VIRTUAL_ENV/bin/python" -m pip install -r /requirements.txt
 
-WORKDIR $LC_HOME
 
-RUN buildout -c $CONFIG && \
-    cd src/scrubber && python setup.py install && \
-    pip install -r $LC_HOME/src/reportek.converters/requirements.txt && \
-    mkdir -p $LC_HOME/var && \
-    chown -R 500:500 $LC_HOME && \
-    yum autoremove -y gcc gcc-c++ && \
-    yum clean all && \
-    dnf clean all && \
-    rm -rf /var/cache/yum && \
-    rm -rf /var/cache/dnf
+FROM python:3.11-slim-bookworm AS runtime
 
-HEALTHCHECK --interval=3m --timeout=5s --start-period=1m \
-    CMD nc -z -w5 127.0.0.1 5000 || exit 1
+ENV LC_HOME=/opt/local_converters \
+    VIRTUAL_ENV=/opt/local_converters/venv \
+    PATH=/opt/local_converters/venv/bin:$PATH \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PORT=5000 \
+    WORKERS=2 \
+    TIMEOUT=300
 
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      antiword \
+      ca-certificates \
+      default-jre-headless \
+      file \
+      gawk \
+      gdal-bin \
+      graphviz \
+      libxml2-utils \
+      mdbtools \
+      netcat-openbsd \
+      p7zip-full \
+      poppler-utils \
+      unzip \
+      wv \
+      xsltproc \
+      zip \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder "$VIRTUAL_ENV" "$VIRTUAL_ENV"
+COPY src/docker-setup.sh /docker-setup.sh
+
+RUN groupadd -g 500 zope-www && \
+    useradd -g 500 -u 500 -m -s /bin/bash zope-www && \
+    mkdir -p "$LC_HOME/var" && \
+    chmod +x /docker-setup.sh && \
+    chown -R 500:500 "$LC_HOME"
+
+WORKDIR /opt/local_converters/venv/lib/python3.11/site-packages/Products/reportek.converters
+
+USER zope-www
+
+HEALTHCHECK --interval=3m --timeout=5s --start-period=30s \
+    CMD nc -z -w5 127.0.0.1 ${PORT} || exit 1
+
+EXPOSE 5000
 VOLUME $LC_HOME/var/
 
 ENTRYPOINT ["/docker-setup.sh"]

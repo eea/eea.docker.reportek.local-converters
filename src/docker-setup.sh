@@ -1,11 +1,20 @@
 #!/bin/bash
+set -euo pipefail
 
-if ! test -e $LC_HOME/buildout.cfg; then
-    python /configure.py
+: "${LC_HOME:=/opt/local_converters}"
+: "${PORT:=5000}"
+: "${WORKERS:=2}"
+: "${TIMEOUT:=300}"
+
+if [ "$#" -gt 0 ]; then
+  exec "$@"
 fi
 
-if test -e $LC_HOME/buildout.cfg; then
-    $LC_HOME/bin/buildout -c $LC_HOME/buildout.cfg
-fi
+mkdir -p "$LC_HOME/var"
 
-exec /opt/local_converters/bin/reportek_converters start
+exec gunicorn \
+  --bind "0.0.0.0:${PORT}" \
+  --workers "${WORKERS}" \
+  --timeout "${TIMEOUT}" \
+  --pid "$LC_HOME/var/converters.pid" \
+  web:app
