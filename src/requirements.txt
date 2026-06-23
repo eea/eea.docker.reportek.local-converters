@@ -1,4 +1,4 @@
 --find-links https://eggrepo.eea.europa.eu/simple
 
 gunicorn
-reportek.converters==1.2.7
+reportek.converters==1.2.8
