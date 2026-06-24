@@ -8,7 +8,7 @@ ENV LC_HOME=/opt/local_converters \
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      ca-certificates \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
 COPY src/requirements.txt /requirements.txt
@@ -31,22 +31,17 @@ ENV LC_HOME=/opt/local_converters \
 
 RUN apt-get update && \
     DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
-      antiword \
-      ca-certificates \
-      default-jre-headless \
-      file \
-      gawk \
-      gdal-bin \
-      graphviz \
-      libxml2-utils \
-      mdbtools \
-      netcat-openbsd \
-      p7zip-full \
-      poppler-utils \
-      unzip \
-      wv \
-      xsltproc \
-      zip \
+    ca-certificates \
+    default-jre-headless \
+    gawk \
+    gdal-bin \
+    graphviz \
+    netcat-openbsd \
+    p7zip-full \
+    poppler-utils \
+    unzip \
+    unar \
+    xsltproc \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder "$VIRTUAL_ENV" "$VIRTUAL_ENV"
